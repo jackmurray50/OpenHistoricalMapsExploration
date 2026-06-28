@@ -15,12 +15,6 @@ public class OsmWayConfiguration : IEntityTypeConfiguration<OsmWay>
     /// <param name="builder">The builder to be used to configure the entity type.</param>
     public void Configure(EntityTypeBuilder<OsmWay> builder)
     {
-        builder.HasKey(w => w.Id);
-
-        builder.Property(w => w.Version)
-            .IsRequired();
-
-        builder.Property(w => w.Visible)
-            .IsRequired();
+        // Configuration delegated to OsmEntityConfiguration
     }
 }

@@ -15,18 +15,10 @@ public class OsmNodeConfiguration : IEntityTypeConfiguration<OsmNode>
     /// <param name="builder">The builder to be used to configure the entity type.</param>
     public void Configure(EntityTypeBuilder<OsmNode> builder)
     {
-        builder.HasKey(n => n.Id);
-
         builder.Property(n => n.Longitude)
             .IsRequired();
 
         builder.Property(n => n.Latitude)
-            .IsRequired();
-
-        builder.Property(n => n.Version)
-            .IsRequired();
-
-        builder.Property(n => n.Visible)
             .IsRequired();
 
         // Indexes for geospatial queries

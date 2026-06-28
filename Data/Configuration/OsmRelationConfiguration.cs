@@ -15,12 +15,6 @@ public class OsmRelationConfiguration : IEntityTypeConfiguration<OsmRelation>
     /// <param name="builder">The builder to be used to configure the entity type.</param>
     public void Configure(EntityTypeBuilder<OsmRelation> builder)
     {
-        builder.HasKey(r => r.Id);
-
-        builder.Property(r => r.Version)
-            .IsRequired();
-
-        builder.Property(r => r.Visible)
-            .IsRequired();
+        // Configuration delegated to OsmEntityConfiguration
     }
 }
