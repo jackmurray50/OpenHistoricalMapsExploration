@@ -1,0 +1,59 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
+# All files
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# C# files
+[*.cs]
+indent_style = space
+indent_size = 4
+
+#### StyleCop Analyzer Rules ####
+
+# SA1600: Elements should be documented
+dotnet_diagnostic.SA1600.severity = error
+
+# SA1601: Partial elements should be documented
+dotnet_diagnostic.SA1601.severity = error
+
+# SA1402: File may only contain a single type
+dotnet_diagnostic.SA1402.severity = error
+
+# SA1649: File name should match first type name
+dotnet_diagnostic.SA1649.severity = error
+
+# SA1309: Field names should not begin with underscore
+dotnet_diagnostic.SA1309.severity = error
+
+# SA1310: Field names should not contain underscore
+dotnet_diagnostic.SA1310.severity = error
+
+# SA1311: Static readonly fields should begin with upper case letter
+dotnet_diagnostic.SA1311.severity = error
+
+# SA1200: Using directives should be placed correctly
+dotnet_diagnostic.SA1200.severity = error
+
+# SA0001: XML comment analysis is disabled
+dotnet_diagnostic.SA0001.severity = none
+
+# SA1028: Code should not contain trailing whitespace
+dotnet_diagnostic.SA1028.severity = error
+
+# SA1413: Use trailing comma in multi-line initializers
+dotnet_diagnostic.SA1413.severity = warning
+
+# SA1117: Parameters should be on same line or separate lines
+dotnet_diagnostic.SA1117.severity = warning
+
+# SA1116: Split parameters should start on line after declaration
+dotnet_diagnostic.SA1116.severity = warning
+
+# SA1633: File should have header
+dotnet_diagnostic.SA1633.severity = none
