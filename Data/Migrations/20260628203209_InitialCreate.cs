@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -15,16 +16,16 @@ namespace Data.Migrations
                 name: "OsmEntity",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    ChangesetId = table.Column<long>(type: "INTEGER", nullable: true),
-                    Version = table.Column<int>(type: "INTEGER", nullable: false),
-                    UserId = table.Column<long>(type: "INTEGER", nullable: true),
-                    Visible = table.Column<bool>(type: "INTEGER", nullable: false),
-                    Timestamp = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    EntityType = table.Column<string>(type: "TEXT", maxLength: 13, nullable: false),
-                    Longitude = table.Column<double>(type: "REAL", nullable: true),
-                    Latitude = table.Column<double>(type: "REAL", nullable: true)
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ChangesetId = table.Column<long>(type: "bigint", nullable: true),
+                    Version = table.Column<int>(type: "integer", nullable: false),
+                    UserId = table.Column<long>(type: "bigint", nullable: true),
+                    Visible = table.Column<bool>(type: "boolean", nullable: false),
+                    Timestamp = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    EntityType = table.Column<string>(type: "character varying(13)", maxLength: 13, nullable: false),
+                    Longitude = table.Column<double>(type: "double precision", nullable: true),
+                    Latitude = table.Column<double>(type: "double precision", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -32,17 +33,38 @@ namespace Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "OsmTags",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Key = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    Value = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    EntityId = table.Column<long>(type: "bigint", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_OsmTags", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_OsmTags_OsmEntity_EntityId",
+                        column: x => x.EntityId,
+                        principalTable: "OsmEntity",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "RelationMembers",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    RelationId = table.Column<long>(type: "INTEGER", nullable: false),
-                    MemberId = table.Column<long>(type: "INTEGER", nullable: false),
-                    Role = table.Column<string>(type: "TEXT", maxLength: 255, nullable: true),
-                    SequenceNumber = table.Column<int>(type: "INTEGER", nullable: false),
-                    OsmNodeId = table.Column<long>(type: "INTEGER", nullable: true),
-                    OsmWayId = table.Column<long>(type: "INTEGER", nullable: true)
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    RelationId = table.Column<long>(type: "bigint", nullable: false),
+                    MemberId = table.Column<long>(type: "bigint", nullable: false),
+                    Role = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    SequenceNumber = table.Column<int>(type: "integer", nullable: false),
+                    OsmNodeId = table.Column<long>(type: "bigint", nullable: true),
+                    OsmWayId = table.Column<long>(type: "bigint", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -72,35 +94,14 @@ namespace Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Tags",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    Key = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
-                    Value = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: false),
-                    EntityId = table.Column<long>(type: "INTEGER", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Tags", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_Tags_OsmEntity_EntityId",
-                        column: x => x.EntityId,
-                        principalTable: "OsmEntity",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "WayNodes",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    WayId = table.Column<long>(type: "INTEGER", nullable: false),
-                    NodeId = table.Column<long>(type: "INTEGER", nullable: false),
-                    SequenceNumber = table.Column<int>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    WayId = table.Column<long>(type: "bigint", nullable: false),
+                    NodeId = table.Column<long>(type: "bigint", nullable: false),
+                    SequenceNumber = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -135,6 +136,21 @@ namespace Data.Migrations
                 column: "Longitude");
 
             migrationBuilder.CreateIndex(
+                name: "IX_OsmTags_EntityId",
+                table: "OsmTags",
+                column: "EntityId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_OsmTags_Key",
+                table: "OsmTags",
+                column: "Key");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_OsmTags_Key_Value",
+                table: "OsmTags",
+                columns: new[] { "Key", "Value" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_RelationMembers_MemberId",
                 table: "RelationMembers",
                 column: "MemberId");
@@ -160,21 +176,6 @@ namespace Data.Migrations
                 columns: new[] { "RelationId", "SequenceNumber" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_Tags_EntityId",
-                table: "Tags",
-                column: "EntityId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Tags_Key",
-                table: "Tags",
-                column: "Key");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Tags_Key_Value",
-                table: "Tags",
-                columns: new[] { "Key", "Value" });
-
-            migrationBuilder.CreateIndex(
                 name: "IX_WayNodes_NodeId",
                 table: "WayNodes",
                 column: "NodeId");
@@ -194,10 +195,10 @@ namespace Data.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "RelationMembers");
+                name: "OsmTags");
 
             migrationBuilder.DropTable(
-                name: "Tags");
+                name: "RelationMembers");
 
             migrationBuilder.DropTable(
                 name: "WayNodes");
