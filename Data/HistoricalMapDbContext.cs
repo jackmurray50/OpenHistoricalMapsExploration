@@ -1,5 +1,6 @@
 using DataTypes.Entities;
 using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
 
 namespace Data;
 

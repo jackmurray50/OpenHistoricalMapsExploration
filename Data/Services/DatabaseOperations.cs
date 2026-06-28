@@ -1,4 +1,6 @@
 using DataTypes.Entities;
+using EFCore.BulkExtensions;
+using Microsoft.EntityFrameworkCore;
 
 namespace Data.Services;
 
@@ -24,25 +26,18 @@ public class DatabaseOperations
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task ClearAllDataAsync()
     {
-        _context.RelationMembers.RemoveRange(_context.RelationMembers);
-        _context.WayNodes.RemoveRange(_context.WayNodes);
-        _context.OsmTags.RemoveRange(_context.OsmTags);
+        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE \"RelationMembers\" DISABLE TRIGGER ALL");
+        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE \"WayNodes\" DISABLE TRIGGER ALL");
+        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE \"OsmTags\" DISABLE TRIGGER ALL");
 
-        // Nodes, Ways, Relations are in the same table (TPH), so remove them via the base Entities query
-        _context.ChangeTracker.DetectChanges();
-        var entitiesToRemove = _context.ChangeTracker.Entries<OsmEntity>()
-            .Where(e => e.State == Microsoft.EntityFrameworkCore.EntityState.Added || 
-                       e.State == Microsoft.EntityFrameworkCore.EntityState.Unchanged ||
-                       e.State == Microsoft.EntityFrameworkCore.EntityState.Modified)
-            .Select(e => e.Entity)
-            .ToList();
+        await _context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE \"RelationMembers\" CASCADE");
+        await _context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE \"WayNodes\" CASCADE");
+        await _context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE \"OsmTags\" CASCADE");
+        await _context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE \"OsmEntity\" CASCADE");
 
-        if (entitiesToRemove.Any())
-        {
-            _context.RemoveRange(entitiesToRemove);
-        }
-
-        await _context.SaveChangesAsync();
+        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE \"OsmTags\" ENABLE TRIGGER ALL");
+        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE \"WayNodes\" ENABLE TRIGGER ALL");
+        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE \"RelationMembers\" ENABLE TRIGGER ALL");
     }
 
     /// <summary>
@@ -54,32 +49,35 @@ public class DatabaseOperations
     public async Task UpsertEntitiesAsync(IEnumerable<OsmEntity> entities, int batchSize = 1000)
     {
         var entityList = entities.ToList();
-        var batches = entityList.Chunk(batchSize);
+        if (entityList.Count == 0)
+            return;
 
-        foreach (var batch in batches)
+        // Separate entities by type
+        var nodes = entityList.OfType<OsmNode>().ToList();
+        var ways = entityList.OfType<OsmWay>().ToList();
+        var relations = entityList.OfType<OsmRelation>().ToList();
+
+        // Insert all nodes in one go
+        if (nodes.Count > 0)
         {
-            foreach (var entity in batch)
-            {
-                var existing = await _context.Set<OsmEntity>().FindAsync(entity.Id);
-                if (existing != null)
-                {
-                    // Update existing entity
-                    _context.Entry(existing).CurrentValues.SetValues(entity);
-                    existing.Tags.Clear();
-                    foreach (var tag in entity.Tags)
-                    {
-                        existing.Tags.Add(tag);
-                    }
-                }
-                else
-                {
-                    // Add new entity
-                    _context.Add(entity);
-                }
-            }
-
-            await _context.SaveChangesAsync();
+            _context.Nodes.AddRange(nodes);
         }
+
+        // Insert all ways in one go
+        if (ways.Count > 0)
+        {
+            _context.Ways.AddRange(ways);
+        }
+
+        // Insert all relations in one go
+        if (relations.Count > 0)
+        {
+            _context.Relations.AddRange(relations);
+        }
+
+        // Single SaveChangesAsync for the entire 5M batch
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
     }
 
     /// <summary>
@@ -91,25 +89,14 @@ public class DatabaseOperations
     public async Task UpsertTagsAsync(IEnumerable<OsmTag> tags, int batchSize = 2000)
     {
         var tagList = tags.ToList();
-        var batches = tagList.Chunk(batchSize);
+        if (tagList.Count == 0)
+            return;
 
-        foreach (var batch in batches)
+        await _context.BulkInsertOrUpdateAsync(tagList, new BulkConfig
         {
-            foreach (var tag in batch)
-            {
-                var existing = await _context.OsmTags.FindAsync(tag.Id);
-                if (existing != null)
-                {
-                    _context.Entry(existing).CurrentValues.SetValues(tag);
-                }
-                else
-                {
-                    _context.OsmTags.Add(tag);
-                }
-            }
-
-            await _context.SaveChangesAsync();
-        }
+            BatchSize = batchSize,
+            CalculateStats = false
+        });
     }
 
     /// <summary>
@@ -121,25 +108,14 @@ public class DatabaseOperations
     public async Task UpsertWayNodesAsync(IEnumerable<WayNode> wayNodes, int batchSize = 5000)
     {
         var wayNodeList = wayNodes.ToList();
-        var batches = wayNodeList.Chunk(batchSize);
+        if (wayNodeList.Count == 0)
+            return;
 
-        foreach (var batch in batches)
+        await _context.BulkInsertOrUpdateAsync(wayNodeList, new BulkConfig
         {
-            foreach (var wayNode in batch)
-            {
-                var existing = await _context.WayNodes.FindAsync(wayNode.Id);
-                if (existing != null)
-                {
-                    _context.Entry(existing).CurrentValues.SetValues(wayNode);
-                }
-                else
-                {
-                    _context.WayNodes.Add(wayNode);
-                }
-            }
-
-            await _context.SaveChangesAsync();
-        }
+            BatchSize = batchSize,
+            CalculateStats = false
+        });
     }
 
     /// <summary>
@@ -151,25 +127,14 @@ public class DatabaseOperations
     public async Task UpsertRelationMembersAsync(IEnumerable<RelationMember> relationMembers, int batchSize = 5000)
     {
         var relationMemberList = relationMembers.ToList();
-        var batches = relationMemberList.Chunk(batchSize);
+        if (relationMemberList.Count == 0)
+            return;
 
-        foreach (var batch in batches)
+        await _context.BulkInsertOrUpdateAsync(relationMemberList, new BulkConfig
         {
-            foreach (var relationMember in batch)
-            {
-                var existing = await _context.RelationMembers.FindAsync(relationMember.Id);
-                if (existing != null)
-                {
-                    _context.Entry(existing).CurrentValues.SetValues(relationMember);
-                }
-                else
-                {
-                    _context.RelationMembers.Add(relationMember);
-                }
-            }
-
-            await _context.SaveChangesAsync();
-        }
+            BatchSize = batchSize,
+            CalculateStats = false
+        });
     }
 
     /// <summary>

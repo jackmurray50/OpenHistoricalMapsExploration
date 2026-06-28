@@ -5,8 +5,8 @@ using OsmSharp.Streams;
 namespace Data.Services;
 
 /// <summary>
-/// Service for importing OSM data from PBF files using OsmSharp.
-/// Converts OsmSharp elements to DataTypes entities.
+/// Service for importing OSM data from PBF files using OsmSharp with streaming writes.
+/// Converts OsmSharp elements to DataTypes entities and streams them to the database in chunks.
 /// </summary>
 public class OsmDataImporter
 {
@@ -14,16 +14,28 @@ public class OsmDataImporter
     private long _wayNodeId = 1;
     private long _relationMemberId = 1;
 
+    // Streaming batch configuration
+    private const int FLUSH_SIZE = 1_000_000; // Flush to database every X objects
+
     /// <summary>
-    /// Reads and imports OSM data from a PBF file.
+    /// Callback for progress reporting during streaming import.
+    /// </summary>
+    public delegate void ImportProgressCallback(long itemsProcessed, long entitiesInBatch, long tagsInBatch, long wayNodesInBatch, long relationMembersInBatch);
+
+    /// <summary>
+    /// Event raised during import to report progress.
+    /// </summary>
+    public event ImportProgressCallback? OnProgress;
+
+    /// <summary>
+    /// Reads and imports OSM data from a PBF file with streaming writes.
+    /// Batches are written to the database every FLUSH_SIZE items to manage memory.
     /// </summary>
     /// <param name="pbfFilePath">Path to the PBF file.</param>
-    /// <returns>
-    /// A tuple containing lists of (entities, tags, wayNodes, relationMembers) extracted from the PBF file.
-    /// </returns>
+    /// <param name="databaseOps">The database operations service for writing batches.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="FileNotFoundException">Thrown if the PBF file does not exist.</exception>
-    public (List<OsmEntity> Entities, List<OsmTag> Tags, List<WayNode> WayNodes, List<DataTypes.Entities.RelationMember> RelationMembers) 
-        ImportFromPbf(string pbfFilePath)
+    public async Task ImportFromPbfStreamingAsync(string pbfFilePath, DatabaseOperations databaseOps)
     {
         if (!File.Exists(pbfFilePath))
         {
@@ -35,15 +47,19 @@ public class OsmDataImporter
         var wayNodes = new List<WayNode>();
         var relationMembers = new List<DataTypes.Entities.RelationMember>();
 
+        long itemsProcessed = 0;
+
         using (var fileStream = File.OpenRead(pbfFilePath))
         {
             var source = new OsmSharp.Streams.PBFOsmStreamSource(fileStream);
-
             foreach (var osmObject in source)
             {
                 if (osmObject == null)
                     continue;
 
+                itemsProcessed++;
+
+                // Parse the OSM object and add to appropriate lists
                 switch (osmObject.Type)
                 {
                     case OsmGeoType.Node:
@@ -66,10 +82,53 @@ public class OsmDataImporter
                         relationMembers.AddRange(ConvertRelationMembers((Relation)osmObject, osmRelation.Id));
                         break;
                 }
+
+                // Flush to database when batch reaches FLUSH_SIZE
+                if (itemsProcessed % FLUSH_SIZE == 0)
+                {
+                    // Report progress
+                    OnProgress?.Invoke(itemsProcessed, entities.Count, tags.Count, wayNodes.Count, relationMembers.Count);
+
+                    await FlushBatchAsync(databaseOps, entities, tags, wayNodes, relationMembers);
+
+                    // Clear batches for next iteration
+                    entities.Clear();
+                    tags.Clear();
+                    wayNodes.Clear();
+                    relationMembers.Clear();
+                }
+            }
+
+            // Flush any remaining items in the final batch
+            if (entities.Count > 0 || tags.Count > 0 || wayNodes.Count > 0 || relationMembers.Count > 0)
+            {
+                OnProgress?.Invoke(itemsProcessed, 0, 0, 0, 0);
+                await FlushBatchAsync(databaseOps, entities, tags, wayNodes, relationMembers);
             }
         }
+    }
 
-        return (entities, tags, wayNodes, relationMembers);
+    /// <summary>
+    /// Flushes the current batch to the database.
+    /// </summary>
+    private async Task FlushBatchAsync(
+        DatabaseOperations databaseOps,
+        List<OsmEntity> entities,
+        List<OsmTag> tags,
+        List<WayNode> wayNodes,
+        List<DataTypes.Entities.RelationMember> relationMembers)
+    {
+        if (entities.Count > 0)
+            await databaseOps.UpsertEntitiesAsync(entities, batchSize: 100_000);
+
+        if (tags.Count > 0)
+            await databaseOps.UpsertTagsAsync(tags, batchSize: 100_000);
+
+        if (wayNodes.Count > 0)
+            await databaseOps.UpsertWayNodesAsync(wayNodes, batchSize: 100_000);
+
+        if (relationMembers.Count > 0)
+            await databaseOps.UpsertRelationMembersAsync(relationMembers, batchSize: 100_000);
     }
 
     /// <summary>
@@ -85,7 +144,7 @@ public class OsmDataImporter
             ChangesetId = node.ChangeSetId,
             UserId = node.UserId,
             Visible = node.Visible ?? true,
-            Timestamp = node.TimeStamp,
+            Timestamp = ConvertToUtcDateTime(node.TimeStamp),
             Version = node.Version ?? 1,
         };
     }
@@ -101,7 +160,7 @@ public class OsmDataImporter
             ChangesetId = way.ChangeSetId,
             UserId = way.UserId,
             Visible = way.Visible ?? true,
-            Timestamp = way.TimeStamp,
+            Timestamp = ConvertToUtcDateTime(way.TimeStamp),
             Version = way.Version ?? 1,
         };
     }
@@ -117,7 +176,7 @@ public class OsmDataImporter
             ChangesetId = relation.ChangeSetId,
             UserId = relation.UserId,
             Visible = relation.Visible ?? true,
-            Timestamp = relation.TimeStamp,
+            Timestamp = ConvertToUtcDateTime(relation.TimeStamp),
             Version = relation.Version ?? 1,
         };
     }
@@ -191,5 +250,21 @@ public class OsmDataImporter
         }
 
         return relationMembers;
+    }
+    // Add this new helper method before the closing brace of the class
+    private DateTime? ConvertToUtcDateTime(DateTime? dateTime)
+    {
+        if (dateTime == null)
+            return null;
+
+        var dt = dateTime.Value;
+
+        if (dt.Kind == DateTimeKind.Utc)
+            return dt;
+
+        if (dt.Kind == DateTimeKind.Unspecified)
+            return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+
+        return dt.ToUniversalTime();
     }
 }
