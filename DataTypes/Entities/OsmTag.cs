@@ -3,7 +3,7 @@ namespace DataTypes.Entities;
 /// <summary>
 /// Represents a tag in OpenStreetMap (OSM) data. A tag is a key-value pair that provides additional information about an OSM element, such as a node, way, or relation. Tags are used to describe the characteristics and attributes of OSM elements.
 /// </summary>
-public class Tag
+public class OsmTag
 {
     /// <summary>
     /// Gets or sets the unique identifier for the tag.

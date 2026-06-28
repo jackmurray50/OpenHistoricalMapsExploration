@@ -38,5 +38,5 @@ public abstract class OsmEntity
     /// <summary>
     /// Gets or sets the collection of tags associated with the OSM entity. Tags provide additional information about the entity, such as its name, type, or other attributes.
     /// </summary>
-    public ICollection<Tag> Tags { get; set; } = new List<Tag>();
+    public ICollection<OsmTag> Tags { get; set; } = new List<OsmTag>();
 }

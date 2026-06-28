@@ -5,15 +5,15 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Data.Configuration;
 
 /// <summary>
-/// Entity type configuration for the <see cref="Tag"/> entity.
+/// Entity type configuration for the <see cref="OsmTag"/> entity.
 /// </summary>
-public class TagConfiguration : IEntityTypeConfiguration<Tag>
+public class OsmTagConfiguration : IEntityTypeConfiguration<OsmTag>
 {
     /// <summary>
-    /// Configures the Tag entity.
+    /// Configures the OsmTag entity.
     /// </summary>
     /// <param name="builder">The builder to be used to configure the entity type.</param>
-    public void Configure(EntityTypeBuilder<Tag> builder)
+    public void Configure(EntityTypeBuilder<OsmTag> builder)
     {
         builder.HasKey(t => t.Id);
 

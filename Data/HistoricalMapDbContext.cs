@@ -36,7 +36,7 @@ public class HistoricalMapDbContext : DbContext
     /// <summary>
     /// Gets or sets the DbSet for tags.
     /// </summary>
-    public DbSet<Tag> Tags { get; set; }
+    public DbSet<OsmTag> OsmTags { get; set; }
 
     /// <summary>
     /// Gets or sets the DbSet for way nodes.
