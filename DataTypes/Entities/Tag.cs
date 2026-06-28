@@ -23,34 +23,14 @@ public class Tag
     // Foreign keys
 
     /// <summary>
-    /// Gets or sets the foreign key for the associated OSM node. This property is nullable, as a tag may not be associated with a node.
+    /// Gets or sets the foreign key for the associated OSM entity. This property is nullable, as a tag may not be associated with an entity.
     /// </summary>
-    public long? NodeId { get; set; }
-
-    /// <summary>
-    /// Gets or sets the foreign key for the associated OSM way. This property is nullable, as a tag may not be associated with a way.
-    /// </summary>
-    public long? WayId { get; set; }
-
-    /// <summary>
-    /// Gets or sets the foreign key for the associated OSM relation. This property is nullable, as a tag may not be associated with a relation.
-    /// </summary>
-    public long? RelationId { get; set; }
+    public long? EntityId { get; set; }
 
     // Navigation properties
 
     /// <summary>
-    /// Gets or sets the navigation property for the associated OSM node.
+    /// Gets or sets the navigation property for the associated OSM Entity. This property allows navigation from the tag to the corresponding OSM entity (node, way, or relation) that the tag is associated with.
     /// </summary>
-    public OsmNode? Node { get; set; }
-
-    /// <summary>
-    /// Gets or sets the navigation property for the associated OSM way.
-    /// </summary>
-    public OsmWay? Way { get; set; }
-
-    /// <summary>
-    /// Gets or sets the navigation property for the associated OSM relation.
-    /// </summary>
-    public OsmRelation? Relation { get; set; }
+    public OsmEntity Entity { get; set; } = null!;
 }
