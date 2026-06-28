@@ -17,7 +17,13 @@ public class HistoricalMapDbContextFactory : IDesignTimeDbContextFactory<Histori
     public HistoricalMapDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<HistoricalMapDbContext>();
-        optionsBuilder.UseSqlite("Data Source=HistoricalMap.db");
+        // PostgreSQL connection string for design-time
+        // Update with your actual PostgreSQL connection details if needed
+        const string connectionString = "User ID=postgres;Password=postgres;Host=localhost;Port=5432;Database=historicalmap;";
+        optionsBuilder.UseNpgsql(connectionString, options =>
+        {
+
+        });
 
         return new HistoricalMapDbContext(optionsBuilder.Options);
     }
