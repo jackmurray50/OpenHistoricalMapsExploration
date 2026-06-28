@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+  </Folder>
   <Project Path="DataImporter/DataImporter.csproj" Id="658b69da-4df0-43ee-96ac-0611d1d826ce" />
   <Project Path="DataTypes/DataTypes.csproj" Id="3ee67f4d-b83c-45ca-a2d6-fef690c17d65" />
   <Project Path="HistoricalMapWebApp/HistoricalMapWebApp.csproj" />
