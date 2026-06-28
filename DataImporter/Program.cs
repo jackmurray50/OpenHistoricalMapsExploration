@@ -2,6 +2,7 @@ using Data;
 using Data.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure;
 
 // Build configuration from appsettings.json
 var configuration = new ConfigurationBuilder()
@@ -40,7 +41,7 @@ try
 {
     // Configure DbContext
     var optionsBuilder = new DbContextOptionsBuilder<HistoricalMapDbContext>();
-    optionsBuilder.UseSqlite(connectionString);
+    optionsBuilder.UseNpgsql(connectionString);
 
     using (var dbContext = new HistoricalMapDbContext(optionsBuilder.Options))
     {
@@ -80,29 +81,16 @@ try
         // Import data from PBF
         Console.WriteLine();
         Console.WriteLine("Reading PBF file...");
-        var (entities, tags, wayNodes, relationMembers) = importer.ImportFromPbf(pbfFilePath);
 
-        Console.WriteLine($"✓ PBF file parsed:");
-        Console.WriteLine($"  Entities: {entities.Count:N0}");
-        Console.WriteLine($"  Tags: {tags.Count:N0}");
-        Console.WriteLine($"  Way nodes: {wayNodes.Count:N0}");
-        Console.WriteLine($"  Relation members: {relationMembers.Count:N0}");
+        // Subscribe to the OnProgress event
+        importer.OnProgress += (itemsProcessed, entitiesInBatch, tagsInBatch, wayNodesInBatch, relationMembersInBatch) =>
+        {
+            Console.WriteLine($"Progress: {itemsProcessed:N0} items processed");
+            Console.WriteLine($"  Current batch: {entitiesInBatch} entities, {tagsInBatch} tags, {wayNodesInBatch} way nodes, {relationMembersInBatch} relation members");
+            Console.Out.Flush();
+        };
 
-        // Save to database
-        Console.WriteLine();
-        Console.WriteLine("Importing to database...");
-
-        Console.WriteLine("  Upserting entities...");
-        await databaseOps.UpsertEntitiesAsync(entities);
-
-        Console.WriteLine("  Upserting tags...");
-        await databaseOps.UpsertTagsAsync(tags);
-
-        Console.WriteLine("  Upserting way nodes...");
-        await databaseOps.UpsertWayNodesAsync(wayNodes);
-
-        Console.WriteLine("  Upserting relation members...");
-        await databaseOps.UpsertRelationMembersAsync(relationMembers);
+        await importer.ImportFromPbfStreamingAsync(pbfFilePath, databaseOps);
 
         // Final count
         var (finalEntityCount, finalTagCount, finalWayNodeCount, finalRelationMemberCount) =
