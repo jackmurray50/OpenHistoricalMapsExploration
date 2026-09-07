@@ -1,6 +1,7 @@
 using DataTypes.Entities;
 using OsmSharp;
 using OsmSharp.Streams;
+using System.Collections.Concurrent;
 
 namespace Data.Services;
 
@@ -15,12 +16,13 @@ public class OsmDataImporter
     private long _relationMemberId = 1;
 
     // Streaming batch configuration
-    private const int FLUSH_SIZE = 1_000_000; // Flush to database every X objects
+    private const int FLUSH_SIZE = 15_000_000; // Flush to database every X objects
+    private const int PARALLEL_TASKS = 1; // Number of concurrent database operations (serialized to prevent connection busy errors)
 
     /// <summary>
     /// Callback for progress reporting during streaming import.
     /// </summary>
-    public delegate void ImportProgressCallback(long itemsProcessed, long entitiesInBatch, long tagsInBatch, long wayNodesInBatch, long relationMembersInBatch);
+    public delegate void ImportProgressCallback(long itemsProcessed, long nodesInBatch, long waysInBatch, long relationsInBatch, long tagsInBatch);
 
     /// <summary>
     /// Event raised during import to report progress.
@@ -35,23 +37,28 @@ public class OsmDataImporter
     /// <param name="databaseOps">The database operations service for writing batches.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="FileNotFoundException">Thrown if the PBF file does not exist.</exception>
-    public async Task ImportFromPbfStreamingAsync(string pbfFilePath, DatabaseOperations databaseOps)
+     public async Task ImportFromPbfStreamingAsync(string pbfFilePath, DatabaseOperations databaseOps)
     {
         if (!File.Exists(pbfFilePath))
         {
             throw new FileNotFoundException($"PBF file not found: {pbfFilePath}");
         }
 
-        var entities = new List<OsmEntity>();
+        var nodes = new List<OsmNode>();
+        var ways = new List<OsmWay>();
+        var relations = new List<OsmRelation>();
         var tags = new List<OsmTag>();
         var wayNodes = new List<WayNode>();
         var relationMembers = new List<DataTypes.Entities.RelationMember>();
 
+        var parseStopwatch = System.Diagnostics.Stopwatch.StartNew();
         long itemsProcessed = 0;
+        var flushTasks = new ConcurrentQueue<Task>();
 
         using (var fileStream = File.OpenRead(pbfFilePath))
         {
             var source = new OsmSharp.Streams.PBFOsmStreamSource(fileStream);
+
             foreach (var osmObject in source)
             {
                 if (osmObject == null)
@@ -64,21 +71,21 @@ public class OsmDataImporter
                 {
                     case OsmGeoType.Node:
                         var osmNode = ConvertNode((Node)osmObject);
-                        entities.Add(osmNode);
-                        tags.AddRange(ConvertTags(osmObject.Tags, osmNode.Id));
+                        nodes.Add(osmNode);
+                        tags.AddRange(ConvertTags(osmObject.Tags, osmNode.Id, "Node"));
                         break;
 
                     case OsmGeoType.Way:
                         var osmWay = ConvertWay((Way)osmObject);
-                        entities.Add(osmWay);
-                        tags.AddRange(ConvertTags(osmObject.Tags, osmWay.Id));
+                        ways.Add(osmWay);
+                        tags.AddRange(ConvertTags(osmObject.Tags, osmWay.Id, "Way"));
                         wayNodes.AddRange(ConvertWayNodes((Way)osmObject, osmWay.Id));
                         break;
 
                     case OsmGeoType.Relation:
                         var osmRelation = ConvertRelation((Relation)osmObject);
-                        entities.Add(osmRelation);
-                        tags.AddRange(ConvertTags(osmObject.Tags, osmRelation.Id));
+                        relations.Add(osmRelation);
+                        tags.AddRange(ConvertTags(osmObject.Tags, osmRelation.Id, "Relation"));
                         relationMembers.AddRange(ConvertRelationMembers((Relation)osmObject, osmRelation.Id));
                         break;
                 }
@@ -86,13 +93,40 @@ public class OsmDataImporter
                 // Flush to database when batch reaches FLUSH_SIZE
                 if (itemsProcessed % FLUSH_SIZE == 0)
                 {
-                    // Report progress
-                    OnProgress?.Invoke(itemsProcessed, entities.Count, tags.Count, wayNodes.Count, relationMembers.Count);
+                    parseStopwatch.Stop();
+                    var parseTime = parseStopwatch.ElapsedMilliseconds;
+                    var itemsPerSecond = (itemsProcessed / (parseTime / 1000.0));
+                    Console.WriteLine($"Parse speed: {itemsPerSecond:N0} items/sec ({parseTime}ms for {itemsProcessed:N0} items)");
+                    parseStopwatch.Restart();
 
-                    await FlushBatchAsync(databaseOps, entities, tags, wayNodes, relationMembers);
+                    // Report progress BEFORE clearing
+                    OnProgress?.Invoke(itemsProcessed, nodes.Count, ways.Count, relations.Count, tags.Count);
+
+                    // Create a copy of the current batch for async processing
+                    var batchNodes = new List<OsmNode>(nodes);
+                    var batchWays = new List<OsmWay>(ways);
+                    var batchRelations = new List<OsmRelation>(relations);
+                    var batchTags = new List<OsmTag>(tags);
+                    var batchWayNodes = new List<WayNode>(wayNodes);
+                    var batchRelationMembers = new List<DataTypes.Entities.RelationMember>(relationMembers);
+
+                    // Queue the flush task
+                    var flushTask = FlushBatchAsync(databaseOps, batchNodes, batchWays, batchRelations, batchTags, batchWayNodes, batchRelationMembers);
+                    flushTasks.Enqueue(flushTask);
+
+                    // Wait if we have too many pending tasks (limit concurrency)
+                    while (flushTasks.Count >= PARALLEL_TASKS)
+                    {
+                        if (flushTasks.TryDequeue(out var task))
+                        {
+                            await task;
+                        }
+                    }
 
                     // Clear batches for next iteration
-                    entities.Clear();
+                    nodes.Clear();
+                    ways.Clear();
+                    relations.Clear();
                     tags.Clear();
                     wayNodes.Clear();
                     relationMembers.Clear();
@@ -100,11 +134,27 @@ public class OsmDataImporter
             }
 
             // Flush any remaining items in the final batch
-            if (entities.Count > 0 || tags.Count > 0 || wayNodes.Count > 0 || relationMembers.Count > 0)
+            if (nodes.Count > 0 || ways.Count > 0 || relations.Count > 0 || tags.Count > 0 || wayNodes.Count > 0 || relationMembers.Count > 0)
             {
-                OnProgress?.Invoke(itemsProcessed, 0, 0, 0, 0);
-                await FlushBatchAsync(databaseOps, entities, tags, wayNodes, relationMembers);
+                var batchNodes = new List<OsmNode>(nodes);
+                var batchWays = new List<OsmWay>(ways);
+                var batchRelations = new List<OsmRelation>(relations);
+                var batchTags = new List<OsmTag>(tags);
+                var batchWayNodes = new List<WayNode>(wayNodes);
+                var batchRelationMembers = new List<DataTypes.Entities.RelationMember>(relationMembers);
+
+                var flushTask = FlushBatchAsync(databaseOps, batchNodes, batchWays, batchRelations, batchTags, batchWayNodes, batchRelationMembers);
+                flushTasks.Enqueue(flushTask);
             }
+
+            // Wait for all remaining flush tasks to complete
+            Console.WriteLine("Waiting for all batch writes to complete...");
+            while (flushTasks.TryDequeue(out var task))
+            {
+                await task;
+            }
+
+            OnProgress?.Invoke(itemsProcessed, 0, 0, 0, 0);
         }
     }
 
@@ -113,13 +163,21 @@ public class OsmDataImporter
     /// </summary>
     private async Task FlushBatchAsync(
         DatabaseOperations databaseOps,
-        List<OsmEntity> entities,
+        List<OsmNode> nodes,
+        List<OsmWay> ways,
+        List<OsmRelation> relations,
         List<OsmTag> tags,
         List<WayNode> wayNodes,
         List<DataTypes.Entities.RelationMember> relationMembers)
     {
-        if (entities.Count > 0)
-            await databaseOps.UpsertEntitiesAsync(entities, batchSize: 100_000);
+        if (nodes.Count > 0)
+            await databaseOps.UpsertNodesAsync(nodes, batchSize: 100_000);
+
+        if (ways.Count > 0)
+            await databaseOps.UpsertWaysAsync(ways, batchSize: 100_000);
+
+        if (relations.Count > 0)
+            await databaseOps.UpsertRelationsAsync(relations, batchSize: 100_000);
 
         if (tags.Count > 0)
             await databaseOps.UpsertTagsAsync(tags, batchSize: 100_000);
@@ -184,7 +242,7 @@ public class OsmDataImporter
     /// <summary>
     /// Converts OsmSharp tags to OsmTag entities.
     /// </summary>
-    private List<OsmTag> ConvertTags(OsmSharp.Tags.TagsCollectionBase osmTags, long entityId)
+    private List<OsmTag> ConvertTags(OsmSharp.Tags.TagsCollectionBase osmTags, long entityId, string entityType)
     {
         var tags = new List<OsmTag>();
         if (osmTags == null || osmTags.Count == 0)
@@ -198,6 +256,7 @@ public class OsmDataImporter
                 Key = tag.Key,
                 Value = tag.Value,
                 EntityId = entityId,
+                EntityType = entityType,
             });
         }
 
@@ -239,11 +298,19 @@ public class OsmDataImporter
         for (int i = 0; i < relation.Members.Length; i++)
         {
             var member = relation.Members[i];
+            var memberType = member.Type switch
+            {
+                OsmGeoType.Node => "Node",
+                OsmGeoType.Way => "Way",
+                OsmGeoType.Relation => "Relation",
+                _ => "Unknown"
+            };
             relationMembers.Add(new DataTypes.Entities.RelationMember
             {
                 Id = _relationMemberId++,
                 RelationId = relationId,
                 MemberId = member.Id,
+                MemberType = memberType,
                 Role = member.Role,
                 SequenceNumber = i,
             });
