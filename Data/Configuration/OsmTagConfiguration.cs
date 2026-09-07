@@ -25,14 +25,18 @@ public class OsmTagConfiguration : IEntityTypeConfiguration<OsmTag>
             .IsRequired()
             .HasMaxLength(2000);
 
-        // Foreign key relationship to OsmEntity
-        builder.HasOne(t => t.Entity)
-            .WithMany(e => e.Tags)
-            .HasForeignKey(t => t.EntityId)
-            .OnDelete(DeleteBehavior.Cascade);
+        // EntityId - polymorphic FK (not enforced at DB level due to TPC)
+        builder.Property(t => t.EntityId)
+            .IsRequired(false);
 
-        // Index for common queries
+        // EntityType - discriminator for polymorphic relationship
+        builder.Property(t => t.EntityType)
+            .HasMaxLength(20)
+            .IsRequired(false);
+
+        // Indexes for common queries
         builder.HasIndex(t => t.Key);
         builder.HasIndex(t => new { t.Key, t.Value });
+        builder.HasIndex(t => new { t.EntityId, t.EntityType });
     }
 }

@@ -4,26 +4,46 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Data.Configuration;
 
-/// <summary>
-/// Entity type configuration for the <see cref="OsmNode"/> entity.
-/// </summary>
 public class OsmNodeConfiguration : IEntityTypeConfiguration<OsmNode>
 {
-    /// <summary>
-    /// Configures the OsmNode entity.
-    /// </summary>
-    /// <param name="builder">The builder to be used to configure the entity type.</param>
     public void Configure(EntityTypeBuilder<OsmNode> builder)
     {
-        builder.Property(n => n.Longitude)
+        // Use Table-Per-Concrete-Type (TPC) inheritance strategy
+        builder.UseTpcMappingStrategy();
+
+        // Primary key
+        builder.HasKey(n => n.Id);
+
+        // TPC: maps to separate table with all properties
+        builder.ToTable("OsmNode");
+
+        // Configure base properties (from IOsmEntity)
+        builder.Property(n => n.Id)
+            .ValueGeneratedNever(); // OSM IDs come from source data
+
+        builder.Property(n => n.ChangesetId)
+            .IsRequired(false);
+
+        builder.Property(n => n.Version)
             .IsRequired();
 
+        builder.Property(n => n.UserId)
+            .IsRequired(false);
+
+        builder.Property(n => n.Visible)
+            .IsRequired();
+
+        builder.Property(n => n.Timestamp)
+            .IsRequired(false);
+
+        // Node-specific properties
         builder.Property(n => n.Latitude)
             .IsRequired();
 
-        // Indexes for geospatial queries
-        builder.HasIndex(n => n.Latitude);
-        builder.HasIndex(n => n.Longitude);
+        builder.Property(n => n.Longitude)
+            .IsRequired();
+
+        // Indexes for spatial queries
         builder.HasIndex(n => new { n.Latitude, n.Longitude });
     }
 }
