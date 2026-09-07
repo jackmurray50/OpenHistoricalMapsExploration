@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Json;
 
 namespace Data;
 
@@ -16,13 +18,18 @@ public class HistoricalMapDbContextFactory : IDesignTimeDbContextFactory<Histori
     /// <returns>A new configured instance of <see cref="HistoricalMapDbContext"/>.</returns>
     public HistoricalMapDbContext CreateDbContext(string[] args)
     {
+        // Build configuration from appsettings.json in the DataImporter project
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(Path.Combine(Directory.GetCurrentDirectory(), "..", "DataImporter"))
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .Build();
+
+        var connectionString = configuration.GetConnectionString("HistoricalMapDatabase");
+
         var optionsBuilder = new DbContextOptionsBuilder<HistoricalMapDbContext>();
-        // PostgreSQL connection string for design-time
-        // Update with your actual PostgreSQL connection details if needed
-        const string connectionString = "User ID=postgres;Password=postgres;Host=localhost;Port=5432;Database=historicalmap;";
         optionsBuilder.UseNpgsql(connectionString, options =>
         {
-
+            options.CommandTimeout(null);
         });
 
         return new HistoricalMapDbContext(optionsBuilder.Options);
