@@ -2,7 +2,7 @@
   "profiles": {
     "DataImporter": {
       "commandName": "Project",
-      "commandLineArgs": "overwrite \"E:\\Downloads\\planet-260628_0001.osm.pbf\""
+      "commandLineArgs": "overwrite \"F:\\planet-260628_0001.osm.pbf\""
     }
   }
 }
