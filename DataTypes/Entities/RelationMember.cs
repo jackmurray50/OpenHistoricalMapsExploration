@@ -21,18 +21,10 @@ public class RelationMember
     public long MemberId { get; set; }
 
     /// <summary>
-    /// Gets the type of the member entity (Node, Way, or Relation).
+    /// Gets or sets the type of the member entity. This is used to identify whether the member is a Node, Way, or Relation.
+    /// Valid values: "Node", "Way", "Relation"
     /// </summary>
-    public string MemberType
-    {
-        get => this.Member switch
-        {
-            OsmNode => "Node",
-            OsmWay => "Way",
-            OsmRelation => "Relation",
-            _ => this.Member.GetType().Name,
-        };
-    }
+    public string MemberType { get; set; } = null!;
 
     /// <summary>
     /// Gets or sets the role of the member within the relation. The role defines the purpose or function of the member in the context of the relation, such as "outer", "inner", "stop", etc. This property is optional and can be null if no specific role is assigned.
@@ -50,9 +42,4 @@ public class RelationMember
     /// Gets or sets the navigation property for the associated OSM relation. This property allows access to the relation that the member belongs to.
     /// </summary>
     public OsmRelation Relation { get; set; } = null!;
-
-    /// <summary>
-    /// Gets or sets the navigation property for the associated OSM entity (node, way, or relation). This property allows access to the member entity that is part of the relation.
-    /// </summary>
-    public OsmEntity Member { get; set; } = null!;
 }
