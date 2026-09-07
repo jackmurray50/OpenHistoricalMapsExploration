@@ -4,17 +4,36 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Data.Configuration;
 
-/// <summary>
-/// Entity type configuration for the <see cref="OsmRelation"/> entity.
-/// </summary>
 public class OsmRelationConfiguration : IEntityTypeConfiguration<OsmRelation>
 {
-    /// <summary>
-    /// Configures the OsmRelation entity.
-    /// </summary>
-    /// <param name="builder">The builder to be used to configure the entity type.</param>
     public void Configure(EntityTypeBuilder<OsmRelation> builder)
     {
-        // Configuration delegated to OsmEntityConfiguration
+        // Use Table-Per-Concrete-Type (TPC) inheritance strategy
+        builder.UseTpcMappingStrategy();
+
+        // Primary key
+        builder.HasKey(r => r.Id);
+
+        // TPC: maps to separate table with all properties
+        builder.ToTable("OsmRelation");
+
+        // Configure base properties (from IOsmEntity)
+        builder.Property(r => r.Id)
+            .ValueGeneratedNever(); // OSM IDs come from source data
+
+        builder.Property(r => r.ChangesetId)
+            .IsRequired(false);
+
+        builder.Property(r => r.Version)
+            .IsRequired();
+
+        builder.Property(r => r.UserId)
+            .IsRequired(false);
+
+        builder.Property(r => r.Visible)
+            .IsRequired();
+
+        builder.Property(r => r.Timestamp)
+            .IsRequired(false);
     }
 }

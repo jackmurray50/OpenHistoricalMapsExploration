@@ -3,6 +3,7 @@ using System;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(HistoricalMapDbContext))]
-    partial class HistoricalMapDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260628221436_SwitchToTablePerType")]
+    partial class SwitchToTablePerType
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -22,45 +25,13 @@ namespace Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("DataTypes.Entities.OsmNode", b =>
+            modelBuilder.Entity("DataTypes.Entities.OsmEntity", b =>
                 {
                     b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("bigint");
 
-                    b.Property<long?>("ChangesetId")
-                        .HasColumnType("bigint");
-
-                    b.Property<double>("Latitude")
-                        .HasColumnType("double precision");
-
-                    b.Property<double>("Longitude")
-                        .HasColumnType("double precision");
-
-                    b.Property<DateTime?>("Timestamp")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long?>("UserId")
-                        .HasColumnType("bigint");
-
-                    b.Property<int>("Version")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("Visible")
-                        .HasColumnType("boolean");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Latitude", "Longitude");
-
-                    b.ToTable("OsmNode", (string)null);
-
-                    b.UseTpcMappingStrategy();
-                });
-
-            modelBuilder.Entity("DataTypes.Entities.OsmRelation", b =>
-                {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
                     b.Property<long?>("ChangesetId")
                         .HasColumnType("bigint");
@@ -79,9 +50,9 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("OsmRelation", (string)null);
+                    b.ToTable("OsmEntity", (string)null);
 
-                    b.UseTpcMappingStrategy();
+                    b.UseTptMappingStrategy();
                 });
 
             modelBuilder.Entity("DataTypes.Entities.OsmTag", b =>
@@ -95,23 +66,10 @@ namespace Data.Migrations
                     b.Property<long?>("EntityId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("EntityType")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
                     b.Property<string>("Key")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
-
-                    b.Property<long?>("OsmNodeId")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("OsmRelationId")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("OsmWayId")
-                        .HasColumnType("bigint");
 
                     b.Property<string>("Value")
                         .IsRequired()
@@ -120,46 +78,13 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("EntityId");
+
                     b.HasIndex("Key");
-
-                    b.HasIndex("OsmNodeId");
-
-                    b.HasIndex("OsmRelationId");
-
-                    b.HasIndex("OsmWayId");
-
-                    b.HasIndex("EntityId", "EntityType");
 
                     b.HasIndex("Key", "Value");
 
                     b.ToTable("OsmTags");
-                });
-
-            modelBuilder.Entity("DataTypes.Entities.OsmWay", b =>
-                {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("ChangesetId")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTime?>("Timestamp")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long?>("UserId")
-                        .HasColumnType("bigint");
-
-                    b.Property<int>("Version")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("Visible")
-                        .HasColumnType("boolean");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("OsmWay", (string)null);
-
-                    b.UseTpcMappingStrategy();
                 });
 
             modelBuilder.Entity("DataTypes.Entities.RelationMember", b =>
@@ -172,11 +97,6 @@ namespace Data.Migrations
 
                     b.Property<long>("MemberId")
                         .HasColumnType("bigint");
-
-                    b.Property<string>("MemberType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
 
                     b.Property<long?>("OsmNodeId")
                         .HasColumnType("bigint");
@@ -203,8 +123,6 @@ namespace Data.Migrations
                     b.HasIndex("OsmWayId");
 
                     b.HasIndex("RelationId");
-
-                    b.HasIndex("MemberId", "MemberType");
 
                     b.HasIndex("RelationId", "SequenceNumber");
 
@@ -239,23 +157,53 @@ namespace Data.Migrations
                     b.ToTable("WayNodes");
                 });
 
+            modelBuilder.Entity("DataTypes.Entities.OsmNode", b =>
+                {
+                    b.HasBaseType("DataTypes.Entities.OsmEntity");
+
+                    b.Property<double>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("Longitude")
+                        .HasColumnType("double precision");
+
+                    b.HasIndex("Latitude", "Longitude");
+
+                    b.ToTable("OsmNode", (string)null);
+                });
+
+            modelBuilder.Entity("DataTypes.Entities.OsmRelation", b =>
+                {
+                    b.HasBaseType("DataTypes.Entities.OsmEntity");
+
+                    b.ToTable("OsmRelation", (string)null);
+                });
+
+            modelBuilder.Entity("DataTypes.Entities.OsmWay", b =>
+                {
+                    b.HasBaseType("DataTypes.Entities.OsmEntity");
+
+                    b.ToTable("OsmWay", (string)null);
+                });
+
             modelBuilder.Entity("DataTypes.Entities.OsmTag", b =>
                 {
-                    b.HasOne("DataTypes.Entities.OsmNode", null)
+                    b.HasOne("DataTypes.Entities.OsmEntity", "Entity")
                         .WithMany("Tags")
-                        .HasForeignKey("OsmNodeId");
+                        .HasForeignKey("EntityId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
-                    b.HasOne("DataTypes.Entities.OsmRelation", null)
-                        .WithMany("Tags")
-                        .HasForeignKey("OsmRelationId");
-
-                    b.HasOne("DataTypes.Entities.OsmWay", null)
-                        .WithMany("Tags")
-                        .HasForeignKey("OsmWayId");
+                    b.Navigation("Entity");
                 });
 
             modelBuilder.Entity("DataTypes.Entities.RelationMember", b =>
                 {
+                    b.HasOne("DataTypes.Entities.OsmEntity", "Member")
+                        .WithMany()
+                        .HasForeignKey("MemberId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("DataTypes.Entities.OsmNode", null)
                         .WithMany("RelationMembers")
                         .HasForeignKey("OsmNodeId");
@@ -269,6 +217,8 @@ namespace Data.Migrations
                         .HasForeignKey("RelationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Member");
 
                     b.Navigation("Relation");
                 });
@@ -294,9 +244,39 @@ namespace Data.Migrations
 
             modelBuilder.Entity("DataTypes.Entities.OsmNode", b =>
                 {
-                    b.Navigation("RelationMembers");
+                    b.HasOne("DataTypes.Entities.OsmEntity", null)
+                        .WithOne()
+                        .HasForeignKey("DataTypes.Entities.OsmNode", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
 
+            modelBuilder.Entity("DataTypes.Entities.OsmRelation", b =>
+                {
+                    b.HasOne("DataTypes.Entities.OsmEntity", null)
+                        .WithOne()
+                        .HasForeignKey("DataTypes.Entities.OsmRelation", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DataTypes.Entities.OsmWay", b =>
+                {
+                    b.HasOne("DataTypes.Entities.OsmEntity", null)
+                        .WithOne()
+                        .HasForeignKey("DataTypes.Entities.OsmWay", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DataTypes.Entities.OsmEntity", b =>
+                {
                     b.Navigation("Tags");
+                });
+
+            modelBuilder.Entity("DataTypes.Entities.OsmNode", b =>
+                {
+                    b.Navigation("RelationMembers");
 
                     b.Navigation("WayNodes");
                 });
@@ -304,15 +284,11 @@ namespace Data.Migrations
             modelBuilder.Entity("DataTypes.Entities.OsmRelation", b =>
                 {
                     b.Navigation("Members");
-
-                    b.Navigation("Tags");
                 });
 
             modelBuilder.Entity("DataTypes.Entities.OsmWay", b =>
                 {
                     b.Navigation("RelationMembers");
-
-                    b.Navigation("Tags");
 
                     b.Navigation("WayNodes");
                 });

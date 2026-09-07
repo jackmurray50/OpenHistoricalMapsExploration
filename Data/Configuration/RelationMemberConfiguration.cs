@@ -23,21 +23,25 @@ public class RelationMemberConfiguration : IEntityTypeConfiguration<RelationMemb
         builder.Property(rm => rm.SequenceNumber)
             .IsRequired();
 
+        // MemberId - polymorphic FK (not enforced at DB level due to TPC)
+        builder.Property(rm => rm.MemberId)
+            .IsRequired();
+
+        // MemberType - discriminator for polymorphic relationship
+        builder.Property(rm => rm.MemberType)
+            .HasMaxLength(20)
+            .IsRequired();
+
         // Foreign key relationship to OsmRelation
         builder.HasOne(rm => rm.Relation)
             .WithMany(r => r.Members)
             .HasForeignKey(rm => rm.RelationId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Foreign key relationship to OsmEntity (polymorphic - can be Node, Way, or Relation)
-        builder.HasOne(rm => rm.Member)
-            .WithMany()
-            .HasForeignKey(rm => rm.MemberId)
-            .OnDelete(DeleteBehavior.Restrict);
-
         // Indexes for common queries
         builder.HasIndex(rm => rm.RelationId);
         builder.HasIndex(rm => rm.MemberId);
         builder.HasIndex(rm => new { rm.RelationId, rm.SequenceNumber });
+        builder.HasIndex(rm => new { rm.MemberId, rm.MemberType });
     }
 }

@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
+    <File Path="start-postgres.ps1" />
   </Folder>
   <Project Path="Data/Data.csproj" />
   <Project Path="DataImporter/DataImporter.csproj" Id="658b69da-4df0-43ee-96ac-0611d1d826ce" />
